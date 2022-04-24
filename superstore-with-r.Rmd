@@ -1,0 +1,52 @@
+---
+title: "Superstore-with-R"
+author: "Yu Yuen Hern"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Tableau Superstore Dataset
+
+With growing demands and cut-throat competitions in the market, a Superstore Giant is seeking your knowledge in understanding what works best for them. They would like to understand which products, regions, categories and customer segments they should target or avoid.
+
+They also want to have a Regression model to predict Sales or Profit.
+
+# Get the dataset
+
+Firstly, let's get the dataset from XLS file. In the XLS file, there are 3 sheets:
+
+-   Orders: List of transactions
+-   Returns: List of items returned
+-   People: List of sales person for West, East, Central and South
+
+Let's import the necessary libraries first.
+
+```{r}
+library(readxl)
+```
+
+Now let's retrieve the dataset in as a dataframe.
+
+```{r, echo=FALSE}
+df_order = read_xls('superstore.xls', sheet = 'Orders', col_names = TRUE)
+df_return = read_xls('superstore.xls', sheet='Returns', col_names = TRUE)
+df_people = read_xls('superstore.xls', sheet='People', col_names = TRUE)
+```
+
+## Checking the data
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
