@@ -37,16 +37,170 @@ df_return = read_xls('superstore.xls', sheet='Returns', col_names = TRUE)
 df_people = read_xls('superstore.xls', sheet='People', col_names = TRUE)
 ```
 
-## Checking the data
+## View the data
 
+"Order" dataframe:
 
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+head(df_order)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+"Return" dataframe:
+
+```{r}
+head(df_return)
+```
+
+"people" dataframe:
+
+```{r}
+head(df_people)
+```
+
+Now that we are able to obtain the data, let's check and validate the data.
+
+# Validate the data - "Order" data
+
+Checking the structure of the "Order" data:
+
+```{r}
+str(df_order)
+```
+
+The "Order" dataframe is 9994 instances and 21 features. Now check the summary of the "Order" dataframe.
+
+```{r}
+summary(df_order)
+```
+
+What piqued interest was the statistics in Sales, Quantity, Discount and Profit column. From there, we know that:
+
+-   Sales range from USD 0.44 to USD 22,638.48 per transaction; the average sales closed is USD 229.86 while a typical sale closed is USD 54.49
+-   Quantity sold range from 1 to 14 items per transaction; typically each transaction sold around 3 to 4 items.
+-   Discount range from USD 0 to USD 0.80, meaning this shop only give minimal discounts to customers.
+-   Profit range from a loss USD -6,599.98 to a profit of USD 8,399.98. The average profit per transaction is USD 28.66 but we know most of the profit is lower than that due to median lower than mean.
+-   On top of that, we also noticed that R is not able to identify which one is datetime format as they are parsed as characters.
+
+Next, we check for missing values:
+
+```{r}
+apply(is.na(df_order), 2, sum)
+```
+
+There are no missing values for `df_order`. Next, we check on the unique values of each relevant features.
+
+```{r, echo=FALSE}
+cat(length(unique(df_order$Segment)), 'unique values in Segment: ', unique(df_order$Segment), '\n')
+cat(length(unique(df_order$`Ship Mode`)), 'unique values in Ship Mode: ', unique(df_order$`Ship Mode`), '\n')
+cat(length(unique(df_order$Country)), 'unique values in Country: ', unique(df_order$Country), '\n')
+cat(length(unique(df_order$City)), 'unique values in City', '\n')
+cat(length(unique(df_order$State)), 'unique values in State: ', unique(df_order$State), '\n')
+cat(length(unique(df_order$Region)), 'unique values in Region: ', unique(df_order$Region), '\n')
+cat(length(unique(df_order$Category)), 'unique values in Category: ', unique(df_order$Category), '\n')
+cat(length(unique(df_order$`Sub-Category`)), 'unique values in Sub-Category: ', unique(df_order$`Sub-Category`), '\n')
+```
+
+Repeat the same for `df_return`. No need for `df_people` because it is just 4 rows.
+
+# Validate the data - "Return" data
+
+Structure of `df_return`:
+
+```{r}
+str(df_return)
+```
+
+Summary of `df_return`:
+
+```{r}
+summary(df_return)
+```
+
+Missing values of `df_return`:
+
+```{r}
+apply(is.na(df_return), 2, sum)
+```
+
+No missing values too in `df_return`.
+
+Unique values of `df_return`:
+
+```{r}
+cat(length(unique(df_return$Returned)), 'unique values in Returned:', unique(df_return$Returned))
+```
+
+# Data Wrangling - Merging "Return" and "People" dataframe into "Order" dataframe
+
+We merge `df_return$Returned` and `df_people$Person` into `df_order$Returned` and `df_order$Person` respectively, using full join to retain all values and rows.
+
+```{r}
+df = dplyr::full_join(df_order, df_return, by="Order ID")
+df = dplyr::full_join(df, df_people, by="Region")
+df$`Order Date` = as.Date.character(df$`Order Date`, format="%Y-%m-%d")
+df$`Ship Date` = as.Date(df$`Ship Date`, format="%Y-%m-%d")
+df
+```
+
+`df` will be the dataset we use for EDA, transformation and prediction.
+
+# Exploratory Data Analysis
+
+In this section, we will drill deeper into the data for more insights. But first, we need to know what problems we want to solve and what questions to ask. Taking the POV of the owner of the Superstore:
+
+-   Overview
+    -   What is the monthly sales and profit since inception?
+-   Overview - Increase Revenue
+    -   Which product category and subcategory with highest sales and profit, with and without discount?
+    -   Which customer segment that contribute to the highest sales and profit?
+    -   Which region, state and city contribute to the highest sales and profit?
+-   Overview - Reduce Loss
+    -   Which product category and subcategory that has the highest returned item?
+-   Prediction
+    -   Regression: What is the overall sales and profit in the next month?
+    -   Classification: Based on order features, what is the most likely ship mode for that particular order?
+    
+
+## Overview
+
+What is the monthly sales and profit since inception?
+
+```{r, echo=FALSE}
+df_monthly_sales_profit = as.data.frame(subset.data.frame(df, select=c('Order Date', 'Sales', 'Profit')))
+dim(df_monthly_sales_profit)
+df_monthly_sales_profit[order(df_monthly_sales_profit$`Order Date`),]
+
+library(ggplot2)
+ggplot(data=df_monthly_sales_profit, aes(x=`Order Date`, y=Sales)) + geom_col(size=10)
+```
+
+Notice that there is a spike of sales at two random date - first in early 2014, second in late 2016 - both days recorded total sales > USD 15,000, whereas the mean of daily sales is:
+
+```{r}
+df_sales_groupby_orderdate = df_monthly_sales_profit %>% group_by(`Order Date`) %>% summarise(Sales)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

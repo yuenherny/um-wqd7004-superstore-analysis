@@ -12,4 +12,4 @@ Repo type: Group project
 To be updated
 
 ## Disclaimer
-To be updated
+Use this as a reference only. Analysis to be improved and updated from time to time.
