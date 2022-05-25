@@ -1,0 +1,452 @@
+---
+title: "Superstore-with-R"
+author: "Yu Yuen Hern"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Tableau Superstore Dataset
+
+With growing demands and cut-throat competitions in the market, a Superstore Giant is seeking your knowledge in understanding what works best for them. They would like to understand which products, regions, categories and customer segments they should target or avoid.
+
+They also want to have a Regression model to predict Sales or Profit.
+
+# Get the dataset
+
+Firstly, let's get the dataset from XLS file. In the XLS file, there are 3 sheets:
+
+-   Orders: List of transactions
+-   Returns: List of items returned
+-   People: List of sales person for West, East, Central and South
+
+Let's import the necessary libraries first.
+
+```{r}
+library(readxl)
+```
+
+Now let's retrieve the dataset in as a dataframe.
+
+```{r, echo=FALSE}
+df_order = read_xls('superstore.xls', sheet = 'Orders', col_names = TRUE)
+df_return = read_xls('superstore.xls', sheet='Returns', col_names = TRUE)
+df_people = read_xls('superstore.xls', sheet='People', col_names = TRUE)
+```
+
+## View the data
+
+"Order" dataframe:
+
+```{r}
+head(df_order)
+```
+
+"Return" dataframe:
+
+```{r}
+head(df_return)
+```
+
+"people" dataframe:
+
+```{r}
+head(df_people)
+```
+
+Now that we are able to obtain the data, let's check and validate the data.
+
+# Validate the data - "Order" data
+
+Checking the structure of the "Order" data:
+
+```{r}
+str(df_order)
+```
+
+The "Order" dataframe is 9994 instances and 21 features. Now check the summary of the "Order" dataframe.
+
+```{r}
+summary(df_order)
+```
+
+What piqued interest was the statistics in Sales, Quantity, Discount and Profit column. From there, we know that:
+
+-   Sales range from USD 0.44 to USD 22,638.48 per transaction; the average sales closed is USD 229.86 while a typical sale closed is USD 54.49
+-   Quantity sold range from 1 to 14 items per transaction; typically each transaction sold around 3 to 4 items.
+-   Discount range from USD 0 to USD 0.80, meaning this shop only give minimal discounts to customers.
+-   Profit range from a loss USD -6,599.98 to a profit of USD 8,399.98. The average profit per transaction is USD 28.66 but we know most of the profit is lower than that due to median lower than mean.
+-   On top of that, we also noticed that R is not able to identify which one is datetime format as they are parsed as characters.
+
+Next, we check for missing values:
+
+```{r}
+apply(is.na(df_order), 2, sum)
+```
+
+There are no missing values for `df_order`. Next, we check on the unique values of each relevant features.
+
+```{r, echo=FALSE}
+cat(length(unique(df_order$Segment)), 'unique values in Segment: ', unique(df_order$Segment), '\n')
+cat(length(unique(df_order$`Ship Mode`)), 'unique values in Ship Mode: ', unique(df_order$`Ship Mode`), '\n')
+cat(length(unique(df_order$Country)), 'unique values in Country: ', unique(df_order$Country), '\n')
+cat(length(unique(df_order$City)), 'unique values in City', '\n')
+cat(length(unique(df_order$State)), 'unique values in State: ', unique(df_order$State), '\n')
+cat(length(unique(df_order$Region)), 'unique values in Region: ', unique(df_order$Region), '\n')
+cat(length(unique(df_order$Category)), 'unique values in Category: ', unique(df_order$Category), '\n')
+cat(length(unique(df_order$`Sub-Category`)), 'unique values in Sub-Category: ', unique(df_order$`Sub-Category`), '\n')
+```
+
+Repeat the same for `df_return`. No need for `df_people` because it is just 4 rows.
+
+# Validate the data - "Return" data
+
+Structure of `df_return`:
+
+```{r}
+str(df_return)
+```
+
+Summary of `df_return`:
+
+```{r}
+summary(df_return)
+```
+
+Missing values of `df_return`:
+
+```{r}
+apply(is.na(df_return), 2, sum)
+```
+
+No missing values too in `df_return`.
+
+Unique values of `df_return`:
+
+```{r}
+cat(length(unique(df_return$Returned)), 'unique values in Returned:', unique(df_return$Returned))
+```
+
+# Data Wrangling - Merging "Return" and "People" dataframe into "Order" dataframe
+
+We merge `df_return$Returned` and `df_people$Person` into `df_order$Returned` and `df_order$Person` respectively, using full join to retain all values and rows.
+
+```{r}
+df = dplyr::full_join(df_order, df_return, by="Order ID")
+df = dplyr::full_join(df, df_people, by="Region")
+df$`Order Date` = as.Date.character(df$`Order Date`, format="%Y-%m-%d")
+df$`Ship Date` = as.Date(df$`Ship Date`, format="%Y-%m-%d")
+df
+```
+
+`df` will be the dataset we use for EDA, transformation and prediction.
+
+# Exploratory Data Analysis
+
+In this section, we will drill deeper into the data for more insights. But first, we need to know what problems we want to solve and what questions to ask. Taking the POV of the owner of the Superstore:
+
+-   Overview
+    -   What is the monthly sales and profit since inception?
+-   Overview - Increase Revenue
+    -   Which product category and subcategory with highest sales and profit, with and without discount?
+    -   Which customer segment that contribute to the highest sales and profit?
+    -   Which region, state and city contribute to the highest sales and profit?
+-   Overview - Reduce Loss
+    -   Which product category and subcategory that has the highest returned item?
+-   Prediction
+    -   Regression: What will be the overall sales and profit in the next month?
+    -   Classification: Based on order features, what is the most likely ship mode for that particular order?
+
+## Overview
+
+What is the monthly sales and profit since inception?
+
+```{r, echo=FALSE}
+df_monthly_sales_profit = as.data.frame(subset.data.frame(df, select=c('Order Date', 'Sales', 'Profit')))
+dim(df_monthly_sales_profit)
+df_monthly_sales_profit[order(df_monthly_sales_profit$`Order Date`),]
+
+library(ggplot2)
+ggplot(data=df_monthly_sales_profit, aes(x=`Order Date`, y=Sales)) + geom_col(size=10)
+```
+
+Notice that there is a spike of sales at two random date - first in early 2014, second in late 2016 - both days recorded total sales \> USD 15,000, whereas the mean of daily sales is:
+
+```{r}
+library(dplyr)
+df_sales_groupby_orderdate = df_monthly_sales_profit %>% group_by(`Order Date`) %>% summarise(mean = mean(Sales))
+df_sales_groupby_orderdate[order(-df_sales_groupby_orderdate$mean), ]
+```
+
+Let's plot the mean daily sales in a line chart.
+
+```{r}
+ggplot(data=df_sales_groupby_orderdate, aes(x=`Order Date`, y=mean)) + geom_col(size=10)
+```
+
+```{r}
+cat("Max sales:", df_sales_groupby_orderdate$mean %>% max(), " Min sales:", df_sales_groupby_orderdate$mean %>% min())
+```
+
+From here, we can conclude that on average, the sales of Superstore ranges from \$2.025 to \$4,297.644
+
+Next, let's move on to the next business question:
+
+## Increase Revenue: Which product category and subcategory with highest sales and profit, with and without discount?
+
+First of all, let's check what are the product categories and subcategories that we have:
+
+```{r}
+print(df$Category %>% unique())
+```
+
+Now we know that we have three main product categories, as listed above.
+
+```{r}
+print(df$`Sub-Category` %>% unique())
+```
+
+Now we also know that we have 17 product subcategories, as listed above.
+
+Let's find out the sales and profit for each product category.
+
+```{r}
+df_product_sales_profit = as.data.frame(subset.data.frame(df, select=c('Category', 'Sales', 'Profit', 'Discount')))
+dim(df_product_sales_profit)
+df_product_sales_profit
+```
+
+```{r}
+df_product_sales = df_product_sales_profit %>% group_by(Category) %>% summarise(Sum_sales = sum(Sales), Sum_discount = sum(Discount))
+df_product_sales[order(-df_product_sales$Sum_sales), ]
+```
+
+Technology category contributes the most sales, while registering the least discount.
+
+```{r}
+df_product_profit = df_product_sales_profit %>% group_by(Category) %>% summarise(Sum_profit = sum(Profit), Sum_discount = sum(Discount))
+df_product_profit[order(-df_product_profit$Sum_profit), ]
+```
+
+Again, technology contributes the most profit while registering the least discount.
+
+Next, let's do the same for subcategory, but we include category this time as well.
+
+```{r}
+df_cat_subcat_sales_profit = as.data.frame(subset.data.frame(df, select=c('Category', 'Sub-Category', 'Sales', 'Profit', 'Discount')))
+dim(df_cat_subcat_sales_profit)
+df_cat_subcat_sales_profit
+```
+
+Let's check the total sales and profit of each subcategory, with category in view as well.
+
+```{r}
+df_subcat_sales_profit = df_cat_subcat_sales_profit %>% group_by(Category, `Sub-Category`) %>% summarise(Sum_sales = sum(Sales), Sum_profit = sum(Profit), Sum_discount = sum(Discount))
+
+df_subcat_sales_profit$Perc_disc_sales = df_subcat_sales_profit$Sum_discount / df_subcat_sales_profit$Sum_sales * 100
+df_subcat_sales_profit$Perc_disc_profit = df_subcat_sales_profit$Sum_discount / df_subcat_sales_profit$Sum_profit * 100
+
+df_subcat_sales_profit
+```
+
+The top 5 subcategory with highest sales is...
+
+```{r}
+df_subcat_sales_profit[order(-df_subcat_sales_profit$Sum_sales), ]
+```
+
+... Phones, Chairs, Storage, Tables and Binders - and all with negligible discounts given.
+
+The top 5 subcategory with highest profit is...
+
+```{r}
+df_subcat_sales_profit[order(-df_subcat_sales_profit$Sum_profit), ]
+```
+
+... Copiers, Phones, Accessories, Paper and Binders - all with negligible discounts given.
+
+From here, we understand that:
+
+-   Chairs, Tables and Storage made it as top sales but did not appear as top profit makers.
+-   Worse, Tables register loss of approx \$17k.
+-   Copiers, Accessories and Paper are not top sales but are top profit makers. - Discounts given are negligible.
+
+## Increase Revenue: Which customer segment that contribute to the highest sales and profit?
+
+```{r}
+df_customer_sales_profit = as.data.frame(subset.data.frame(df, select=c('Segment', 'Sales', 'Profit', 'Discount')))
+dim(df_customer_sales_profit)
+df_customer_sales_profit
+```
+
+```{r}
+df_customer_sum_sales_profit = df_customer_sales_profit %>% group_by(Segment) %>% summarise(
+  Sum_sales = sum(Sales), 
+  Sum_profit = sum(Profit), 
+  Sum_discount = sum(Discount))
+df_customer_sum_sales_profit
+```
+
+```{r}
+df_customer_sum_sales_profit$Perc_disc_sales = df_customer_sum_sales_profit$Sum_discount / df_customer_sum_sales_profit$Sum_sales * 100
+df_customer_sum_sales_profit$Perc_disc_profit = df_customer_sum_sales_profit$Sum_discount / df_customer_sum_sales_profit$Sum_profit * 100
+
+df_customer_sum_sales_profit
+```
+
+From here, we can conclude that:
+
+-   The customer segment that contribute to highest sales and profit is Consumer, then followed by Corporate.
+-   All discounts given are negligible.
+-   Home Office is the least sales and profitable segment. However further investigations needed to confirm its root cause.
+
+## Increase Revenue: Which region, state and city contribute to the highest sales and profit?
+
+Based on our previous data checking, we know that all of the transactions happen in United States.
+
+```{r}
+df_location_sales_profit = as.data.frame(subset.data.frame(df, select=c('Region', 'State', 'City', 'Sales', 'Profit', 'Discount')))
+dim(df_location_sales_profit)
+df_location_sales_profit
+```
+
+```{r}
+df_location_sum_sales_profit = df_location_sales_profit %>% group_by(Region, State, City) %>% summarise(
+  Sum_sales = sum(Sales),
+  Sum_profit = sum(Profit),
+  Sum_discount = sum(Discount)
+)
+df_location_sum_sales_profit
+```
+
+Too detailed. Let's see which region is the most sales and profit.
+
+```{r}
+df_location_sales_profit %>% group_by(Region) %>% summarise(
+  Sum_sales = sum(Sales), 
+  Sum_profit = sum(Profit)
+)
+```
+
+The most sales and profitable region is West, then followed by East.
+
+Let's see if this is true in regards to State as well.
+
+```{r}
+df_reg_state_sales_profit = df_location_sales_profit %>% group_by(Region, State) %>% summarise(
+  Sum_sales = sum(Sales), 
+  Sum_profit = sum(Profit))
+```
+
+```{r}
+df_reg_state_sales_profit[order(-df_reg_state_sales_profit$Sum_sales), ]
+```
+
+```{r}
+df_reg_state_sales_profit[order(-df_reg_state_sales_profit$Sum_profit), ]
+```
+
+This analysis confirms our initial analysis that West contributes more sales and profit, then followed by East.
+
+However if we take a look at individual cities, things might not be the same.
+
+```{r}
+df_reg_city_sales_profit = df_location_sales_profit %>% group_by(Region, State, City) %>% summarise(
+  Sum_sales = sum(Sales), 
+  Sum_profit = sum(Profit))
+```
+
+```{r}
+df_reg_city_sales_profit[order(-df_reg_city_sales_profit$Sum_sales), ]
+```
+
+```{r}
+df_reg_city_sales_profit[order(-df_reg_city_sales_profit$Sum_profit), ]
+```
+
+Surprisingly, New York City which is in the East region most sales and profit. Perhaps the other Californian cities did not make as much sales and profit as NYC, but is higher when combined.
+
+We can conclude that: 
+-    West and East region contribute to most sales and profit. 
+-    California (West) and New York (East) has the most sales and profit. 
+-    New York City (NY, East) has the most sales and profit, then followed by Los Angeles (CA, West).
+
+## Reduce Loss: Which product category and subcategory that has the highest returned item?
+
+Let's get the subdataset for Category, Sub-Category, Returned, Region, State, City, Returned, Sales and Profit.
+
+```{r}
+df_returns = as.data.frame(subset.data.frame(df, select=c('Category', 'Sub-Category', 'Region', 'State', 'City', 'Returned', 'Sales', 'Profit')))[which(df$Returned == 'Yes'), ]
+df_return
+```
+
+First, let's check how much profit has been loss due to returns.
+
+```{r}
+cat('Total sales lost due to returns: ', sum(df_returns$Sales), '; Total profit lost due to returns:', sum(df_return$Profit))
+```
+This indicates that \$180,504.30 of sales and \$23,232.36 of profit has been loss from 2014 to 2016, equivalent to:
+
+```{r}
+cat('Total percentage sales lost due to returns: ', sum(df_returns$Sales) / sum(df$Sales) * 100, '%',
+    '\nTotal percentage profit lost due to returns:', sum(df_returns$Profit) / sum(df$Profit) * 100, '%')
+```
+Meaning that Superstore loss 7.9% of its revenue and 8.1% of its profit due to returns alone, from 2014 to 2016.
+
+Returns are inevitable sometimes, but as a businessman, we want to reduce returns as much as possible. Let's investigate deeper.
+
+#### Returns by product category and subcategory
+
+```{r}
+df_return_cat_subcat = df_returns %>% group_by(Category, `Sub-Category`) %>% summarise(Sum_sales = sum(Sales), Sum_profit = sum(Profit))
+```
+
+```{r}
+df_return_cat_subcat[order(-df_return_cat_subcat$Sum_sales), ]
+```
+
+Surprisingly, Phones, Chairs, Copiers and Tables and Storage are the ones with highest revenue lost due to returns.
+
+```{r}
+df_return_cat_subcat[order(-df_return_cat_subcat$Sum_profit), ]
+```
+
+In terms of lost profit, Copiers, Paper, Accessories, Phones and Appliances tops the list. Perhaps the discrepancy is due to subcategories like Copiers, Paper and Accessories has low sales but high profit margin hence it doesn't appear in Lost Sales but do appear in Lost Profit.
+
+*Suggestions to Superstore:*
+-    Emphasis on asking customers on the reasons of returns of Copiers, Paper, Accessories, Phones and Appliances due to highest loss of profit.
+-    Second level emphasis on asking customers on reasons of returns of Chairs, Tables and Storage due to highest loss of revenue.
+-    Revisit return policy to identify any loopholes.
+
+## Next: Feature engineering and selection for machine learning applications, in another R Markdown file. 
+
+But before that, we save our wrangled dataset in a new file.
+
+```{r}
+library(xlsx)
+write.xlsx(df, file = "superstore-df.xls")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

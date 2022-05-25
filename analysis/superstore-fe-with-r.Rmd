@@ -1,0 +1,78 @@
+---
+title: "superstore-fe-with-r"
+author: "Yu Yuen Hern"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get the dataset
+
+Let's import the dataset that we have wrangled and combined previously. In this RMD file, we want to perform feature selection and subsequently modelling.
+
+```{r}
+library(readxl)
+df = read_xls('superstore-df.xls')
+df
+```
+
+
+## Removing Irrelevant Features
+
+Right now, we have the following features:
+-   Row ID
+-   Order ID
+-   Order Date
+-   Ship Date
+-   Ship Mode
+-   Customer ID
+-   Customer Name
+-   Segment
+-   Country
+-   City
+-   State
+-   Postal Code
+-   Region
+-   Product ID
+-   Category
+-   Sub-Category
+-   Product Name
+-   Sales
+-   Quantity
+-   Discount
+-   Profit
+-   Returned
+-   Person
+
+There are features which are obviously irrelevant, i.e. the IDs and the Names (excl Person). Let's remove them first from the dataset. We remove Country because all of the dataset is in the US.
+
+```{r}
+as.data.frame(subset.data.frame(df, select = c('Order Date', 'Ship Date', 'Ship Mode', 'Segment', 'City', 'State', 'Postal Code', 'Region', 'Category', 'Sub-Category', 'Sales', 'Quantity', 'Discount', 'Profit', 'Returned', 'Person')))
+```
+
+## Recall ML Problem Statement
+
+Recall that we want to solve the following problem with ML:
+-   Regression: What will be the overall sales and profit in the next month?
+-   Classification: Based on order features, what is the most likely ship mode for that particular order?
+
+The first is a time series problem, while the second is a classic classification problem.
+
+## Regression Problem: What will be the overall sales and profit in the next month?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
